@@ -67,6 +67,25 @@ const notifyTechnicians = async (data, agencyFilter = null) => {
                 user_id: user.id
             });
         }
+
+        // Fallback: also emit to the role room in case individual user rooms missed it
+        try {
+            const socketService = require('./socketService');
+            if (socketService && socketService.getIo()) {
+                const notification = {
+                    ...data,
+                    is_read: false,
+                    created_at: new Date().toISOString()
+                };
+                socketService.toRole('technician', 'new_notification', notification);
+                if (agencyFilter) {
+                    socketService.toAgency(agencyFilter, 'new_notification', notification);
+                }
+            }
+        } catch (sockErr) {
+            logger.warn('Socket role broadcast failed:', sockErr.message);
+        }
+
         logger.info(`✓ Notified ${count} technicians`);
         return count;
     } catch (error) {

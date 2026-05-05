@@ -1,0 +1,221 @@
+.delete-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 20px;
+}
+
+.delete-modal {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98));
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 24px;
+    width: 100%;
+    max-width: 440px;
+    overflow: hidden;
+    box-shadow:
+        0 0 0 1px rgba(239, 68, 68, 0.08),
+        0 25px 60px rgba(0, 0, 0, 0.5),
+        0 0 80px rgba(239, 68, 68, 0.06);
+}
+
+.delete-modal-danger-bar {
+    height: 4px;
+    background: linear-gradient(90deg, #ef4444, #f97316, #ef4444);
+    background-size: 200% 100%;
+    animation: dangerShimmer 2s ease infinite;
+}
+
+@keyframes dangerShimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+.delete-modal-body {
+    padding: 36px 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+}
+
+.delete-modal-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.12);
+    border: 2px solid rgba(239, 68, 68, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.15); }
+    50% { transform: scale(1.05); box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+}
+
+.delete-modal-icon-wrap svg {
+    color: #ef4444;
+}
+
+.delete-modal-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+
+.delete-modal-text {
+    font-size: 14px;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin: 0;
+    max-width: 340px;
+}
+
+.delete-modal-equipment-card {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 4px;
+}
+
+.delete-modal-eq-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #60a5fa;
+}
+
+.delete-modal-eq-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: left;
+    min-width: 0;
+}
+
+.delete-modal-eq-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.delete-modal-eq-details {
+    font-size: 12px;
+    color: #64748b;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.delete-modal-eq-details span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.delete-modal-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: 10px;
+    padding: 10px 14px;
+    width: 100%;
+    font-size: 12px;
+    color: #fca5a5;
+    line-height: 1.5;
+}
+
+.delete-modal-warning svg {
+    flex-shrink: 0;
+    color: #ef4444;
+}
+
+.delete-modal-footer {
+    padding: 20px 32px 28px;
+    display: flex;
+    gap: 12px;
+}
+
+.delete-modal-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+}
+
+.delete-modal-btn-cancel {
+    background: rgba(51, 65, 85, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    color: #cbd5e1;
+}
+
+.delete-modal-btn-cancel:hover {
+    background: rgba(51, 65, 85, 0.8);
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #f1f5f9;
+}
+
+.delete-modal-btn-confirm {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+.delete-modal-btn-confirm:hover:not(:disabled) {
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+}
+
+.delete-modal-btn-confirm:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.delete-modal-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

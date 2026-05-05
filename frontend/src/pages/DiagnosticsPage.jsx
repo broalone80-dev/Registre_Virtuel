@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { useSocket } from '../hooks/useSocket'
 import { useAuthStore } from '../stores/authStore'

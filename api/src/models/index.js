@@ -103,6 +103,10 @@ User.hasMany(Message, { foreignKey: 'sender_id', as: 'messages' });
 Message.belongsTo(Intervention, { foreignKey: 'intervention_id', as: 'intervention' });
 Intervention.hasMany(Message, { foreignKey: 'intervention_id', as: 'messages' });
 
+// Message <-> Equipment (FK existante dans le modèle Message)
+Message.belongsTo(Equipment, { foreignKey: 'equipment_id', as: 'equipment' });
+Equipment.hasMany(Message, { foreignKey: 'equipment_id', as: 'equipmentMessages' });
+
 // InterventionLog Associations
 InterventionLog.belongsTo(Intervention, { foreignKey: 'intervention_id', as: 'intervention' });
 Intervention.hasMany(InterventionLog, { foreignKey: 'intervention_id', as: 'logs' });

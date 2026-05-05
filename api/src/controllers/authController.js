@@ -27,14 +27,14 @@ const register = async (req, res) => {
             });
         }
 
-        // Créer l'utilisateur
+        // Créer l'utilisateur (rôle forcé à receptionist — seul un admin peut promouvoir)
         const user = await User.create({
             email,
             password,
             first_name,
             last_name,
             phone,
-            role: role || 'receptionist',
+            role: 'receptionist',
             agency_id: agency_id || null
         });
 

@@ -1,15 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { HiOutlineDesktopComputer, HiOutlineSparkles, HiOutlineX } from 'react-icons/hi'
 import {
-    HiOutlineArchiveBox, HiOutlineExclamationTriangle, HiOutlineCheckCircle,
-    HiOutlineMagnifyingGlass, HiOutlineWrenchScrewdriver, HiOutlineUserCircle,
-    HiOutlineChatBubbleBottomCenterText, HiOutlineLightBulb,
-    HiOutlineArrowPath, HiOutlineCpuChip, HiOutlineHandRaised
+    HiOutlineArchiveBox, HiOutlineExclamationTriangle,
+    HiOutlineMagnifyingGlass, HiOutlineUserCircle,
+    HiOutlineBoltSlash
 } from 'react-icons/hi2'
 import toast, { Toaster } from 'react-hot-toast'
+import PreDiagnosticPanel from '../components/PreDiagnosticPanel'
+import ConfirmationCard from '../components/depot/ConfirmationCard'
+import EquipmentSearchDropdown from '../components/depot/EquipmentSearchDropdown'
+import AIDiagnosticPhase from '../components/depot/AIDiagnosticPhase'
 import './DepotPage.css'
 
 const EQUIPMENT_TYPES = [
@@ -26,7 +29,6 @@ const BRANDS = [
 export default function DepotPage() {
     const api = useApi()
     const user = useAuthStore((s) => s.user)
-    const searchRef = useRef(null)
 
     // Étapes : 'form' | 'ai_diagnostic' | 'confirm'
     const [phase, setPhase] = useState('form')
@@ -55,8 +57,8 @@ export default function DepotPage() {
         serial_number: '',
         problem_description: '',
         priority: 'normal',
-        depositor_name: '',
-        depositor_phone: '',
+        depositor_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : '',
+        depositor_phone: user?.phone || '',
         accessories: ''
     })
 
@@ -68,7 +70,9 @@ export default function DepotPage() {
     const [aiComplete, setAiComplete] = useState(false)
     const [aiFinalResult, setAiFinalResult] = useState(null)
     const [aiDecision, setAiDecision] = useState(null) // 'self_fix' | 'depot'
-    const chatEndRef = useRef(null)
+
+    // Pré-diagnostic rapide IA (nouveau)
+    const [showPreDiag, setShowPreDiag] = useState(false)
 
     const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }))
 
@@ -85,11 +89,6 @@ export default function DepotPage() {
         }
         loadRecent()
     }, []) // eslint-disable-line
-
-    // Auto-scroll le chat IA
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [aiAnswers, aiData, aiComplete])
 
     // ─── Recherche équipement ───
     const searchEquipments = async (query) => {
@@ -223,6 +222,18 @@ export default function DepotPage() {
         setAiComplete(false)
         setAiFinalResult(null)
         setAiDecision(null)
+        setShowPreDiag(false)
+    }
+
+    // Gestion décision pré-diagnostic rapide
+    const handlePreDiagDecision = (decision) => {
+        if (decision === 'self_fix') {
+            setShowPreDiag(false)
+            toast.success('Appliquez les solutions rapides suggérées. Si le problème persiste, revenez pour créer un dépôt.')
+        } else if (decision === 'depot') {
+            setShowPreDiag(false)
+            handleSubmit()
+        }
     }
 
     // ─── Soumission ───
@@ -271,7 +282,9 @@ export default function DepotPage() {
         setFormData({
             equipment_type: 'Ordinateur portable', brand: 'Dell', model: '',
             serial_number: '', problem_description: '', priority: 'normal',
-            depositor_name: '', depositor_phone: '', accessories: ''
+            depositor_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : '',
+            depositor_phone: user?.phone || '',
+            accessories: ''
         })
         setSelectedDepositor(null)
         setSelectedEquipment(null)
@@ -280,22 +293,6 @@ export default function DepotPage() {
         setPhase('form')
     }
 
-    // Fermer le dropdown si on clique ailleurs
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (searchRef.current && !searchRef.current.contains(e.target)) {
-                setShowDropdown(false)
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
-
-    // Données à afficher dans le dropdown
-    const dropdownItems = equipmentSearch.length >= 2
-        ? equipmentResults
-        : recentEquipments
-
     // ════════════════════════════════════════
     //  PHASE: CONFIRMATION
     // ════════════════════════════════════════
@@ -303,23 +300,7 @@ export default function DepotPage() {
         return (
             <div className="depot-page">
                 <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#e2e8f0', border: '1px solid rgba(148,163,184,0.2)' } }} />
-                <motion.div className="confirmation-card" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-                    <div className="confirm-icon"><HiOutlineCheckCircle size={56} color="#10b981" /></div>
-                    <h2 className="confirm-title">Dépôt enregistré</h2>
-                    <p className="confirm-text">L'équipement a été transmis au service maintenance.</p>
-                    <div className="confirm-ref">
-                        <span className="confirm-ref-label">Référence de suivi</span>
-                        <span className="confirm-ref-value">{lastRef}</span>
-                    </div>
-                    <div className="confirm-details">
-                        <p><strong>Équipement :</strong> {formData.brand} {formData.model}</p>
-                        <p><strong>Problème :</strong> {formData.problem_description}</p>
-                        {formData.depositor_name && <p><strong>Déposant :</strong> {formData.depositor_name}</p>}
-                    </div>
-                    <button onClick={resetAll} className="btn-primary">
-                        <HiOutlineArchiveBox size={18} /> Nouveau dépôt
-                    </button>
-                </motion.div>
+                <ConfirmationCard lastRef={lastRef} formData={formData} onReset={resetAll} />
             </div>
         )
     }
@@ -329,153 +310,28 @@ export default function DepotPage() {
     // ════════════════════════════════════════
     if (phase === 'ai_diagnostic') {
         return (
-            <div className="depot-page">
-                <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#e2e8f0', border: '1px solid rgba(148,163,184,0.2)' } }} />
-
-                <div className="ai-diagnostic-container">
-                    <div className="ai-header">
-                        <div className="ai-header-icon"><HiOutlineCpuChip size={28} /></div>
-                        <div>
-                            <h2>Diagnostic interactif</h2>
-                            <p>L'assistant analyse le problème avec vous avant de décider du dépôt</p>
-                        </div>
-                        <button className="btn-back-form" onClick={() => { resetAI(); setPhase('form') }}>
-                            <HiOutlineX size={18} /> Retour
-                        </button>
-                    </div>
-
-                    {/* Contexte */}
-                    <div className="ai-context-bar">
-                        <span><HiOutlineDesktopComputer size={16} /> {formData.brand} {formData.model || formData.equipment_type}</span>
-                        <span className="ai-separator">•</span>
-                        <span className="ai-problem-preview">{formData.problem_description.substring(0, 80)}{formData.problem_description.length > 80 ? '...' : ''}</span>
-                    </div>
-
-                    {/* Chat IA */}
-                    <div className="ai-chat">
-                        {/* Message initial IA */}
-                        {aiData && (
-                            <motion.div className="ai-msg ai-msg-bot" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                                <div className="ai-msg-avatar"><HiOutlineCpuChip size={18} /></div>
-                                <div className="ai-msg-content">
-                                    <p>J'ai identifié un problème de type <strong>{aiData.problemType}</strong> (maintenance {aiData.maintenanceType}). Je vais vous poser quelques questions pour analyser la situation.</p>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Questions / Réponses */}
-                        {aiData?.steps?.map((step, i) => {
-                            if (i > aiCurrentStep && !aiAnswers.find(a => a.step === i)) return null
-                            const answered = aiAnswers.find(a => a.step === i)
-                            return (
-                                <div key={i}>
-                                    <motion.div className="ai-msg ai-msg-bot" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                                        <div className="ai-msg-avatar"><HiOutlineCpuChip size={18} /></div>
-                                        <div className="ai-msg-content">
-                                            <p className="ai-question">{step.question}</p>
-                                            {!answered && i === aiCurrentStep && !aiLoading && (
-                                                <div className="ai-options">
-                                                    {step.options.map((opt, j) => (
-                                                        <button key={j} className="ai-option-btn" onClick={() => handleAIAnswer(opt)}>
-                                                            {opt}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                    {answered && (
-                                        <motion.div className="ai-msg ai-msg-user" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                                            <div className="ai-msg-content"><p>{answered.answer}</p></div>
-                                            <div className="ai-msg-avatar ai-avatar-user"><HiOutlineUserCircle size={18} /></div>
-                                        </motion.div>
-                                    )}
-                                </div>
-                            )
-                        })}
-
-                        {/* Loading */}
-                        {aiLoading && (
-                            <div className="ai-msg ai-msg-bot">
-                                <div className="ai-msg-avatar"><HiOutlineCpuChip size={18} /></div>
-                                <div className="ai-msg-content"><div className="ai-typing"><span></span><span></span><span></span></div></div>
-                            </div>
-                        )}
-
-                        {/* Résultat final */}
-                        {aiComplete && aiFinalResult && !aiDecision && (
-                            <motion.div className="ai-result-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                                <h3><HiOutlineLightBulb size={20} /> Analyse terminée</h3>
-                                <p className="ai-result-summary">{aiFinalResult.finalSummary}</p>
-
-                                {aiFinalResult.recommendedActions?.length > 0 && (
-                                    <div className="ai-actions-list">
-                                        <h4>Actions recommandées :</h4>
-                                        <ul>
-                                            {aiFinalResult.recommendedActions.map((action, i) => (
-                                                <li key={i}><HiOutlineWrenchScrewdriver size={14} /> {action}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-
-                                <div className="ai-decision-section">
-                                    <p className="ai-decision-question">Souhaitez-vous essayer de résoudre le problème vous-même ou transmettre au maintenancier ?</p>
-                                    <div className="ai-decision-btns">
-                                        <button className="ai-decision-btn self-fix" onClick={() => setAiDecision('self_fix')}>
-                                            <HiOutlineHandRaised size={20} />
-                                            <span>Je gère moi-même</span>
-                                            <small>Suivre les actions ci-dessus</small>
-                                        </button>
-                                        <button className="ai-decision-btn depot" onClick={() => setAiDecision('depot')}>
-                                            <HiOutlineArchiveBox size={20} />
-                                            <span>Envoyer au maintenancier</span>
-                                            <small>Créer un dépôt officiel</small>
-                                        </button>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Décision: Self fix */}
-                        {aiDecision === 'self_fix' && (
-                            <motion.div className="ai-result-card ai-self-fix-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                                <h3><HiOutlineCheckCircle size={20} color="#10b981" /> Bonne chance !</h3>
-                                <p>Suivez les étapes recommandées. Si le problème persiste, vous pourrez toujours créer un dépôt.</p>
-                                <div className="ai-decision-btns">
-                                    <button className="btn-primary" onClick={() => { resetAI(); setPhase('form') }}>
-                                        <HiOutlineArrowPath size={16} /> Retour au formulaire
-                                    </button>
-                                    <button className="btn-secondary" onClick={() => setAiDecision('depot')}>
-                                        Finalement, créer le dépôt
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Décision: Dépôt */}
-                        {aiDecision === 'depot' && (
-                            <motion.div className="ai-result-card ai-depot-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                                <h3><HiOutlineArchiveBox size={20} color="#3b82f6" /> Création du dépôt</h3>
-                                <p>Le diagnostic sera joint au dépôt pour aider le maintenancier.</p>
-                                <button
-                                    className="btn-primary btn-depot-final"
-                                    onClick={handleSubmit}
-                                    disabled={submitting}
-                                >
-                                    {submitting ? 'Enregistrement...' : (
-                                        <><HiOutlineArchiveBox size={18} /> Confirmer le dépôt</>
-                                    )}
-                                </button>
-                            </motion.div>
-                        )}
-
-                        <div ref={chatEndRef} />
-                    </div>
-                </div>
-            </div>
+            <AIDiagnosticPhase
+                formData={formData}
+                aiData={aiData}
+                aiLoading={aiLoading}
+                aiCurrentStep={aiCurrentStep}
+                aiAnswers={aiAnswers}
+                aiComplete={aiComplete}
+                aiFinalResult={aiFinalResult}
+                aiDecision={aiDecision}
+                submitting={submitting}
+                onAnswer={handleAIAnswer}
+                onSetDecision={setAiDecision}
+                onSubmit={handleSubmit}
+                onResetAndBack={() => { resetAI(); setPhase('form') }}
+            />
         )
     }
+
+    // Données à afficher dans le dropdown
+    const dropdownItems = equipmentSearch.length >= 2
+        ? equipmentResults
+        : recentEquipments
 
     // ════════════════════════════════════════
     //  PHASE: FORMULAIRE PRINCIPAL
@@ -503,99 +359,47 @@ export default function DepotPage() {
                         <HiOutlineDesktopComputer size={18} /> Équipement concerné
                     </h3>
 
-                    {selectedEquipment ? (
-                        <div className="selected-item-card">
-                            <div className="selected-item-info">
-                                <HiOutlineDesktopComputer size={24} className="selected-item-icon" />
-                                <div>
-                                    <strong>{selectedEquipment.brand} {selectedEquipment.model}</strong>
-                                    <span>{selectedEquipment.reference} • {selectedEquipment.type?.name || 'N/A'} • S/N: {selectedEquipment.serial_number || 'N/A'}</span>
+                    <EquipmentSearchDropdown
+                        equipmentSearch={equipmentSearch}
+                        onSearch={searchEquipments}
+                        onSelect={selectEquipment}
+                        onClear={clearEquipment}
+                        selectedEquipment={selectedEquipment}
+                        searchingEquipment={searchingEquipment}
+                        equipmentResults={equipmentResults}
+                        recentEquipments={recentEquipments}
+                        showDropdown={showDropdown}
+                        setShowDropdown={setShowDropdown}
+                    />
+
+                    {/* Formulaire nouvel équipement */}
+                    {!selectedEquipment && equipmentMode === 'new' && (
+                        <div className="new-equipment-fields">
+                            <div className="field-row">
+                                <div className="field">
+                                    <label>Type</label>
+                                    <select value={formData.equipment_type} onChange={(e) => updateField('equipment_type', e.target.value)} className="form-input">
+                                        {EQUIPMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div className="field">
+                                    <label>Marque</label>
+                                    <select value={formData.brand} onChange={(e) => updateField('brand', e.target.value)} className="form-input">
+                                        {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
                                 </div>
                             </div>
-                            <button type="button" onClick={clearEquipment} className="btn-clear">
-                                <HiOutlineX size={16} /> Changer
-                            </button>
+                            <div className="field-row">
+                                <div className="field">
+                                    <label>Modèle</label>
+                                    <input type="text" value={formData.model} onChange={(e) => updateField('model', e.target.value)} placeholder="Ex: Inspiron 15 3520" className="form-input" required />
+                                </div>
+                                <div className="field">
+                                    <label>N° Série <span className="optional">(optionnel)</span></label>
+                                    <input type="text" value={formData.serial_number} onChange={(e) => updateField('serial_number', e.target.value)} placeholder="S/N ou TAG" className="form-input" />
+                                </div>
+                            </div>
                         </div>
-                    ) : (
-                        <>
-                            {/* Barre de recherche avec dropdown */}
-                            <div className="equipment-search-container" ref={searchRef}>
-                                <div className="search-bar">
-                                    <HiOutlineMagnifyingGlass size={18} className="search-bar-icon" />
-                                    <input
-                                        type="text"
-                                        value={equipmentSearch}
-                                        onChange={(e) => searchEquipments(e.target.value)}
-                                        onFocus={() => setShowDropdown(true)}
-                                        placeholder="Rechercher un équipement du parc (marque, modèle, réf)..."
-                                        className="form-input"
-                                    />
-                                    {searchingEquipment && <span className="search-spinner">⏳</span>}
-                                </div>
-
-                                <AnimatePresence>
-                                    {showDropdown && (dropdownItems.length > 0 || equipmentSearch.length >= 2) && (
-                                        <motion.div
-                                            className="equipment-dropdown"
-                                            initial={{ opacity: 0, y: -4 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -4 }}
-                                        >
-                                            {equipmentSearch.length < 2 && recentEquipments.length > 0 && (
-                                                <div className="dropdown-label">
-                                                    <HiOutlineLightBulb size={14} /> Équipements récents de votre agence
-                                                </div>
-                                            )}
-                                            {dropdownItems.map(eq => (
-                                                <div key={eq.id} className="dropdown-item" onClick={() => selectEquipment(eq)}>
-                                                    <HiOutlineDesktopComputer size={16} className="dropdown-item-icon" />
-                                                    <div className="dropdown-item-text">
-                                                        <strong>{eq.brand} {eq.model || ''}</strong>
-                                                        <span>{eq.reference} • {eq.type?.name || ''} • {eq.agency?.name || ''}</span>
-                                                    </div>
-                                                    <span className={`mini-badge status-${eq.status}`}>
-                                                        {eq.status === 'received' ? 'Reçu' : eq.status === 'repaired' ? 'Réparé' : eq.status}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                            {equipmentSearch.length >= 2 && dropdownItems.length === 0 && !searchingEquipment && (
-                                                <div className="dropdown-empty">Aucun résultat — l'appareil sera créé automatiquement</div>
-                                            )}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-
-                            {/* Formulaire nouvel équipement */}
-                            {equipmentMode === 'new' && (
-                                <div className="new-equipment-fields">
-                                    <div className="field-row">
-                                        <div className="field">
-                                            <label>Type</label>
-                                            <select value={formData.equipment_type} onChange={(e) => updateField('equipment_type', e.target.value)} className="form-input">
-                                                {EQUIPMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="field">
-                                            <label>Marque</label>
-                                            <select value={formData.brand} onChange={(e) => updateField('brand', e.target.value)} className="form-input">
-                                                {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="field-row">
-                                        <div className="field">
-                                            <label>Modèle</label>
-                                            <input type="text" value={formData.model} onChange={(e) => updateField('model', e.target.value)} placeholder="Ex: Inspiron 15 3520" className="form-input" required />
-                                        </div>
-                                        <div className="field">
-                                            <label>N° Série <span className="optional">(optionnel)</span></label>
-                                            <input type="text" value={formData.serial_number} onChange={(e) => updateField('serial_number', e.target.value)} placeholder="S/N ou TAG" className="form-input" />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </>
                     )}
                 </div>
 
@@ -694,12 +498,27 @@ export default function DepotPage() {
                 {/* ─── Actions ─── */}
                 <div className="depot-actions">
                     <button
+                        className="btn-prediag-quick"
+                        onClick={() => {
+                            if (!formData.problem_description.trim()) {
+                                toast.error('Décrivez le problème avant de lancer le pré-diagnostic')
+                                return
+                            }
+                            setShowPreDiag(true)
+                        }}
+                        disabled={!formData.problem_description.trim() || showPreDiag}
+                        type="button"
+                        title="Pré-diagnostic rapide : sévérité, recommandation, solutions rapides"
+                    >
+                        <HiOutlineBoltSlash size={18} /> Pré-diagnostic rapide
+                    </button>
+                    <button
                         className="btn-ai-launch"
                         onClick={startAIDiagnostic}
                         disabled={!formData.problem_description.trim()}
                         type="button"
                     >
-                        <HiOutlineSparkles size={18} /> Diagnostic IA avant dépôt
+                        <HiOutlineSparkles size={18} /> Diagnostic IA interactif
                     </button>
                     <button
                         className="btn-submit-depot"
@@ -712,6 +531,23 @@ export default function DepotPage() {
                         )}
                     </button>
                 </div>
+
+                {/* Pré-diagnostic rapide IA */}
+                <AnimatePresence>
+                    {showPreDiag && formData.problem_description.trim() && (
+                        <PreDiagnosticPanel
+                            description={formData.problem_description}
+                            context={{
+                                equipment_type: formData.equipment_type,
+                                brand: formData.brand,
+                                model: formData.model,
+                                equipment_id: selectedEquipment?.id || null
+                            }}
+                            onDecision={handlePreDiagDecision}
+                            onClose={() => setShowPreDiag(false)}
+                        />
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     )

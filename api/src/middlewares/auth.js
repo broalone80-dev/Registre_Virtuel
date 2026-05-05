@@ -34,16 +34,15 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        // Debug secret and token length
-        const secretHint = config.jwt.secret ? `${config.jwt.secret.substring(0, 3)}...` : 'undefined';
-        logger.debug(`Auth: Vérification avec secret [${secretHint}], token len [${token.length}]`);
+        // Debug token length only (never log secret material)
+        logger.debug(`Auth: Vérification token, len [${token.length}]`);
 
         // Vérifier le token
         let decoded;
         try {
             decoded = jwt.verify(token, config.jwt.secret);
         } catch (jwtErr) {
-            logger.error(`Auth: Erreur vérification JWT - ${jwtErr.message} (Token: ${token.substring(0, 10)}...)`);
+            logger.error(`Auth: Erreur vérification JWT - ${jwtErr.message}`);
             return res.status(401).json({
                 success: false,
                 message: jwtErr.name === 'TokenExpiredError' ? 'Token expiré' : 'Token invalide'

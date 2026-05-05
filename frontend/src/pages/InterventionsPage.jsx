@@ -55,6 +55,7 @@ export default function InterventionsPage() {
                 setInterventions(res.data.map(i => ({
                     id: i.id,
                     reference: i.reference || `INT-${i.id}`,
+                    equipment_id: i.equipment_id || i.equipment?.id || null,
                     equipment_name: i.equipment ? `${i.equipment.brand} ${i.equipment.model}` : 'N/A',
                     title: i.actions_performed || i.title || 'Intervention',
                     technician_name: i.technician ? `${i.technician.first_name} ${i.technician.last_name}` : 'N/A',
@@ -566,7 +567,10 @@ export default function InterventionsPage() {
                                     </div>
 
                                     <div className="detail-chat-pane" style={{ background: 'rgba(15, 23, 42, 0.3)' }}>
-                                        <ChatWindow interventionId={selectedIntervention.id} />
+                                        <ChatWindow
+                                            interventionId={selectedIntervention.id}
+                                            equipmentId={selectedIntervention.equipment_id || null}
+                                        />
                                     </div>
                                 </div>
                             </div>

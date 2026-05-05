@@ -21,14 +21,13 @@ apiClient.interceptors.request.use((config) => {
     return config
 })
 
-// Intercepteur de réponse — NE PAS rediriger sur 401 pendant le chargement initial
+// Intercepteur de réponse — déconnexion automatique sur 401
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Seulement déconnecter si c'est un 401 ET que l'utilisateur était authentifié
         if (error.response?.status === 401 && useAuthStore.getState().isAuthenticated) {
-            // Ne pas rediriger — laisser le catch des pages gérer le fallback
-            console.warn('API 401 — Token expiré ou invalide')
+            console.warn('API 401 — Token expiré ou invalide, déconnexion')
+            useAuthStore.getState().logout()
         }
         return Promise.reject(error)
     }

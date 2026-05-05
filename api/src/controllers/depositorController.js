@@ -286,11 +286,26 @@ const deleteDepositor = async (req, res) => {
             });
         }
 
-        // Soft delete - on ne supprime pas, on garde l'historique
-        // Pour une vraie suppression, il faudrait supprimer aussi les équipements
-        await depositor.destroy();
+        // Vérifier s'il y a des équipements actifs liés
+        const activeEquipments = await Equipment.count({
+            where: {
+                depositor_id: id,
+                status: { [Op.notIn]: ['delivered', 'returned'] }
+            }
+        });
 
-        logger.info(`Dépositaire supprimé: ${depositor.getFullName()}`);
+        if (activeEquipments > 0) {
+            return res.status(409).json({
+                success: false,
+                message: `Impossible de supprimer : ${activeEquipments} équipement(s) encore en cours de traitement`
+            });
+        }
+
+        // Soft delete — on désactive au lieu de supprimer pour garder l'historique
+        await depositor.update({ is_vip: false });
+        // Note: Pour un vrai soft-delete, ajouter un champ `is_active` ou Sequelize `paranoid: true`
+
+        logger.info(`Dépositaire désactivé: ${depositor.getFullName()}`);
 
         res.status(200).json({
             success: true,

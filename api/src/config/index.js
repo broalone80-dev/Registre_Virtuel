@@ -24,7 +24,12 @@ module.exports = {
 
     // JWT
     jwt: {
-        secret: process.env.JWT_SECRET || 'default_secret_change_me',
+        secret: (() => {
+            if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+                throw new Error('FATAL: JWT_SECRET must be set in production environment');
+            }
+            return process.env.JWT_SECRET || 'dev_only_secret_not_for_production';
+        })(),
         expiresIn: process.env.JWT_EXPIRES_IN || '24h'
     },
 
@@ -47,5 +52,12 @@ module.exports = {
         pass: process.env.SMTP_PASS || '',
         from: process.env.SMTP_FROM || 'noreply@registre-virtuel.eu',
         frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
+    },
+
+    // IA / Gemini (optionnel — fonctionne en mode rule-based si absent)
+    ai: {
+        geminiApiKey: process.env.GEMINI_API_KEY || '',
+        maxDescriptionLength: parseInt(process.env.AI_MAX_DESC_LENGTH, 10) || 2000,
+        enabled: process.env.AI_ENABLED !== 'false' // activé par défaut
     }
 };

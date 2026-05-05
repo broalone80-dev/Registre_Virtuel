@@ -35,6 +35,16 @@ router.get('/',
 );
 
 /**
+ * @route   GET /api/v1/users/agency/:agencyId
+ * @desc    Récupérer les utilisateurs d'une agence
+ * @access  Private (authentifié)
+ */
+router.get('/agency/:agencyId',
+    authenticate,
+    userController.getUsersByAgency
+);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Récupérer un utilisateur par ID
  * @access  Private (authentifié)
@@ -95,16 +105,6 @@ router.delete('/:id',
     authenticate,
     authorize('admin', 'super_admin'),
     userController.deleteUser
-);
-
-/**
- * @route   GET /api/v1/users/agency/:agencyId
- * @desc    Récupérer les utilisateurs d'une agence
- * @access  Private (authentifié)
- */
-router.get('/agency/:agencyId',
-    authenticate,
-    userController.getUsersByAgency
 );
 
 module.exports = router;

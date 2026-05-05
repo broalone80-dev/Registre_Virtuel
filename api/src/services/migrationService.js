@@ -127,9 +127,10 @@ class MigrationRunner {
                 );
             }
 
-            // Enregistrer la migration comme exécutée
+            // Enregistrer la migration comme exécutée (requête paramétrée pour éviter l'injection SQL)
             await this.sequelize.query(
-                `INSERT INTO SequelizeMeta (name) VALUES ('${name}')`
+                'INSERT INTO SequelizeMeta (name) VALUES (?)',
+                { replacements: [name] }
             );
 
             logger.info(`✅ Migration exécutée: ${name}`);

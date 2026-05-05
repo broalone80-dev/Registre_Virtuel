@@ -8,8 +8,8 @@ import toast, { Toaster } from 'react-hot-toast'
 import './LoginPage.css'
 
 export default function LoginPage() {
-    const [email, setEmail] = useState('admin@registre.eu')
-    const [password, setPassword] = useState('admin123')
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
     const login = useAuthStore((s) => s.login)
     const loading = useAuthStore((s) => s.loading)
     const error = useAuthStore((s) => s.error)

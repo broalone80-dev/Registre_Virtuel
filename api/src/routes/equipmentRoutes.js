@@ -120,4 +120,15 @@ router.patch('/:id/confirm-pickup',
     equipmentController.confirmPickup
 );
 
+/**
+ * @route   DELETE /api/v1/equipments/:id
+ * @desc    Supprimer définitivement un équipement
+ * @access  Private (admin, super_admin)
+ */
+router.delete('/:id',
+    authenticate,
+    authorize('admin', 'super_admin'),
+    equipmentController.deleteEquipment
+);
+
 module.exports = router;

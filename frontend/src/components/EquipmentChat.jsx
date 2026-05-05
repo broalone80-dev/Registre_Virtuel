@@ -60,19 +60,19 @@ export default function EquipmentChat({ equipmentId, onClose }) {
         e.preventDefault()
         if (!newMessage.trim() || sending) return
 
+        const content = newMessage.trim()
+        setNewMessage('')  // vider l'input immédiatement pour le confort UX
         setSending(true)
         try {
-            const res = await api.post('/messages', {
-                content: newMessage.trim(),
+            await api.post('/messages', {
+                content,
                 equipment_id: equipmentId
             })
-            if (res?.data) {
-                const msg = res.data.data || res.data
-                setMessages(prev => [...prev, msg])
-            }
-            setNewMessage('')
+            // Ne PAS ajouter localement : le socket nous renvoie le message dans la room
+            // Cela évite les doublons (local + socket)
         } catch (err) {
             console.error('Error sending message:', err)
+            setNewMessage(content)  // restaurer en cas d'erreur
         } finally {
             setSending(false)
         }

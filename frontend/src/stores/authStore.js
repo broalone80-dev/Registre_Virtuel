@@ -3,6 +3,28 @@ import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
 
+/**
+ * Décode le payload d'un JWT sans librairie externe
+ * Retourne null si le token est invalide
+ */
+const decodeToken = (token) => {
+    try {
+        const payload = token.split('.')[1]
+        return JSON.parse(atob(payload))
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Vérifie si un token JWT est expiré (avec 60s de marge)
+ */
+const isTokenExpired = (token) => {
+    const payload = decodeToken(token)
+    if (!payload?.exp) return true
+    return payload.exp * 1000 < Date.now() + 60_000
+}
+
 export const useAuthStore = create((set, get) => ({
     token: null,
     user: null,
@@ -113,12 +135,16 @@ export const useAuthStore = create((set, get) => ({
             const token = localStorage.getItem('token')
             const userStr = localStorage.getItem('user')
 
-            if (token && userStr) {
+            if (token && userStr && !isTokenExpired(token)) {
                 set({
                     token,
                     user: JSON.parse(userStr),
                     isAuthenticated: true
                 })
+            } else {
+                // Token absent ou expiré — nettoyage
+                localStorage.removeItem('token')
+                localStorage.removeItem('user')
             }
         } catch {
             localStorage.removeItem('token')

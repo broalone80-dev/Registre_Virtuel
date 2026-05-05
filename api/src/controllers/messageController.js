@@ -43,9 +43,26 @@ exports.sendMessage = async (req, res, next) => {
         // Envoyer via Socket.io — ciblé par room
         try {
             if (equipment_id) {
+                // Message direct sur équipement → room équipement
                 socketService.toEquipment(equipment_id, `chat:${equipment_id}`, fullMessage);
             } else if (intervention_id) {
+                // Message intervention → room intervention
                 socketService.toIntervention(intervention_id, `chat:${intervention_id}`, fullMessage);
+
+                // AUSSI broadcast sur la room équipement pour que l'agent voie en temps réel
+                try {
+                    const { Intervention } = require('../models');
+                    const intervention = await Intervention.findByPk(intervention_id, { attributes: ['equipment_id'] });
+                    if (intervention?.equipment_id) {
+                        socketService.toEquipment(
+                            intervention.equipment_id,
+                            `chat:${intervention.equipment_id}`,
+                            fullMessage
+                        );
+                    }
+                } catch (intErr) {
+                    logger.warn('Could not broadcast to equipment room:', intErr.message);
+                }
             }
         } catch (sockErr) {
             // Fallback broadcast si rooms échouent
@@ -81,16 +98,46 @@ exports.getInterventionMessages = async (req, res, next) => {
 
 /**
  * Récupère l'historique des messages d'un équipement
+ * Inclut également les messages liés aux interventions de cet équipement
  */
 exports.getEquipmentMessages = async (req, res, next) => {
     try {
         const { equipmentId } = req.params;
-        const messages = await Message.findAll({
+        const { Intervention } = require('../models');
+
+        // 1. Messages directs sur l'équipement
+        const directMessages = await Message.findAll({
             where: { equipment_id: equipmentId },
             include: [{ model: User, as: 'sender', attributes: ['id', 'first_name', 'last_name', 'role'] }],
             order: [['created_at', 'ASC']]
         });
-        res.json({ success: true, data: messages });
+
+        // 2. Interventions liées à cet équipement
+        const interventions = await Intervention.findAll({
+            where: { equipment_id: equipmentId },
+            attributes: ['id']
+        });
+        const interventionIds = interventions.map(i => i.id);
+
+        // 3. Messages des interventions
+        let interventionMessages = [];
+        if (interventionIds.length > 0) {
+            const { Op } = require('sequelize');
+            interventionMessages = await Message.findAll({
+                where: {
+                    intervention_id: { [Op.in]: interventionIds },
+                    equipment_id: null  // éviter les doublons si les deux sont renseignés
+                },
+                include: [{ model: User, as: 'sender', attributes: ['id', 'first_name', 'last_name', 'role'] }],
+                order: [['created_at', 'ASC']]
+            });
+        }
+
+        // 4. Fusionner et trier par date
+        const allMessages = [...directMessages, ...interventionMessages]
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        res.json({ success: true, data: allMessages });
     } catch (error) {
         next(error);
     }

@@ -15,6 +15,7 @@ import {
     HiOutlineArrowsRightLeft, HiOutlineArrowPath,
     HiOutlineTruck, HiOutlineNoSymbol
 } from 'react-icons/hi2'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import './EquipmentsPage.css'
 
 const STATUS_LABELS = {
@@ -66,6 +67,7 @@ export default function EquipmentsPage() {
     const [showModal, setShowModal] = useState(false)
     const [viewingEquipment, setViewingEquipment] = useState(null)
     const [editingId, setEditingId] = useState(null)
+    const [deleteTarget, setDeleteTarget] = useState(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedStatus, setSelectedStatus] = useState('')
     const [formData, setFormData] = useState({ ...INITIAL_FORM })
@@ -129,14 +131,22 @@ export default function EquipmentsPage() {
             }
         }
 
+        const handleEquipmentDeleted = (data) => {
+            if (data?.equipmentId) {
+                setEquipments(prev => prev.filter(e => e.id !== data.equipmentId))
+            }
+        }
+
         socket.on('equipment:created', handleEquipmentCreated)
         socket.on('equipment:status_updated', handleEquipmentUpdated)
         socket.on('equipment:updated', handleEquipmentUpdated)
+        socket.on('equipment:deleted', handleEquipmentDeleted)
 
         return () => {
             socket.off('equipment:created', handleEquipmentCreated)
             socket.off('equipment:status_updated', handleEquipmentUpdated)
             socket.off('equipment:updated', handleEquipmentUpdated)
+            socket.off('equipment:deleted', handleEquipmentDeleted)
         }
     }, [socket, api])
 
@@ -162,10 +172,14 @@ export default function EquipmentsPage() {
         setShowModal(true)
     }
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet équipement ?')) return
-        try { await api.delete(`/equipments/${id}`) } catch { /* ignore */ }
+    const handleDelete = (equip) => {
+        setDeleteTarget(equip)
+    }
+
+    const confirmDelete = async (id) => {
+        await api.delete(`/equipments/${id}`)
         setEquipments(prev => prev.filter(e => e.id !== id))
+        setDeleteTarget(null)
     }
 
     const handleView = (equip) => {
@@ -357,7 +371,7 @@ export default function EquipmentsPage() {
                                                 <button onClick={() => openEdit(equip)} className="action-btn edit" title="Éditer">
                                                     <HiOutlinePencil size={16} /> Modifier
                                                 </button>
-                                                <button onClick={() => handleDelete(equip.id)} className="action-btn delete" title="Supprimer">
+                                                <button onClick={() => handleDelete(equip)} className="action-btn delete" title="Supprimer">
                                                     <HiOutlineTrash size={16} /> Suppr.
                                                 </button>
                                             </>
@@ -548,6 +562,14 @@ export default function EquipmentsPage() {
                     </div>
                 )}
             </AnimatePresence>
+
+            {deleteTarget && (
+                <DeleteConfirmModal
+                    equipment={deleteTarget}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                />
+            )}
         </div>
     )
 }

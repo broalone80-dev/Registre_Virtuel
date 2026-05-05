@@ -641,12 +641,96 @@
     color: #3b82f6;
 }
 
+/* Inline pre-diagnostic badges */
+.ai-prediag-inline {
+    margin: 12px 0;
+}
+
+.ai-prediag-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ai-prediag-tag {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid;
+}
+
+.ai-prediag-tag.severity-low {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.ai-prediag-tag.severity-medium {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+}
+
+.ai-prediag-tag.severity-high {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.ai-prediag-tag.reco-no_action {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.ai-prediag-tag.reco-monitor {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+}
+
+.ai-prediag-tag.reco-deposit_required {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
 /* ─── Actions Buttons ─── */
 .depot-actions {
     display: flex;
     justify-content: flex-end;
     gap: 16px;
     margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.btn-prediag-quick {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #34d399;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-prediag-quick:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(6, 182, 212, 0.25));
+    border-color: #10b981;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(16, 185, 129, 0.15);
+}
+
+.btn-prediag-quick:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(1);
 }
 
 .btn-ai-launch {
@@ -823,7 +907,8 @@
     }
 
     .btn-ai-launch,
-    .btn-submit-depot {
+    .btn-submit-depot,
+    .btn-prediag-quick {
         justify-content: center;
     }
 }

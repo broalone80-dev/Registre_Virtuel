@@ -5,7 +5,7 @@ import { useApi } from '../hooks/useApi'
 import { useSocket } from '../hooks/useSocket'
 import toast from 'react-hot-toast'
 
-export default function ChatWindow({ interventionId }) {
+export default function ChatWindow({ interventionId, equipmentId }) {
     const [messages, setMessages] = useState([])
     const [newMessage, setNewMessage] = useState('')
     const user = useAuthStore((s) => s.user)
@@ -14,12 +14,29 @@ export default function ChatWindow({ interventionId }) {
     const scrollRef = useRef()
 
     useEffect(() => {
-        // Fetch history
+        // Charger l'historique des messages
         const fetchHistory = async () => {
             try {
+                // Charger les messages de l'intervention
                 const res = await api.get(`/messages/intervention/${interventionId}`)
-                if (res?.data) setMessages(res.data)
-                else if (Array.isArray(res)) setMessages(res)
+                let msgs = []
+                if (res?.data) msgs = Array.isArray(res.data) ? res.data : (res.data.data || [])
+                else if (Array.isArray(res)) msgs = res
+
+                // Si equipmentId fourni, charger aussi les messages de l'équipement (messages de l'agent)
+                if (equipmentId) {
+                    try {
+                        const eqRes = await api.get(`/messages/equipment/${equipmentId}`)
+                        const eqMsgs = eqRes?.data ? (Array.isArray(eqRes.data) ? eqRes.data : (eqRes.data.data || [])) : []
+                        // Fusionner sans doublons et trier par date
+                        const allIds = new Set(msgs.map(m => m.id))
+                        const merged = [...msgs, ...eqMsgs.filter(m => !allIds.has(m.id))]
+                        merged.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+                        msgs = merged
+                    } catch { /* ignorer */ }
+                }
+
+                setMessages(msgs)
             } catch (err) {
                 console.error("Erreur historique messages", err)
             }
@@ -29,20 +46,33 @@ export default function ChatWindow({ interventionId }) {
         // Socket logic
         if (socket) {
             socket.emit('join_intervention', interventionId)
+            if (equipmentId) socket.emit('join_equipment', equipmentId)
 
-            socket.on('new_message', (msg) => {
-                // S'assurer que le message appartient à cette intervention
-                if (msg.intervention_id === interventionId) {
-                    setMessages((prev) => [...prev, msg])
-                }
-            })
+            // Écouter les bons événements (le serveur émet `chat:${id}`)
+            const handleIntMsg = (msg) => {
+                setMessages((prev) => {
+                    if (prev.some(m => m.id === msg.id)) return prev
+                    return [...prev, msg]
+                })
+            }
+            const handleEqMsg = (msg) => {
+                setMessages((prev) => {
+                    if (prev.some(m => m.id === msg.id)) return prev
+                    return [...prev, msg]
+                })
+            }
+
+            socket.on(`chat:${interventionId}`, handleIntMsg)
+            if (equipmentId) socket.on(`chat:${equipmentId}`, handleEqMsg)
 
             return () => {
                 socket.emit('leave_intervention', interventionId)
-                socket.off('new_message')
+                if (equipmentId) socket.emit('leave_equipment', equipmentId)
+                socket.off(`chat:${interventionId}`, handleIntMsg)
+                if (equipmentId) socket.off(`chat:${equipmentId}`, handleEqMsg)
             }
         }
-    }, [interventionId, socket, api])
+    }, [interventionId, equipmentId, socket, api])
 
     useEffect(() => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -52,14 +82,17 @@ export default function ChatWindow({ interventionId }) {
         e.preventDefault()
         if (!newMessage.trim()) return
 
+        const content = newMessage.trim()
+        setNewMessage('')  // vider immédiatement
         try {
             await api.post('/messages', {
-                content: newMessage,
+                content,
                 intervention_id: interventionId
             })
-            setNewMessage('')
+            // Ne pas ajouter localement — le socket renvoie le message via chat:${interventionId}
         } catch (err) {
             toast.error("Erreur d'envoi du message")
+            setNewMessage(content)  // restaurer en cas d'erreur
         }
     }
 

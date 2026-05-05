@@ -189,6 +189,14 @@ const updateUser = async (req, res) => {
         const { id } = req.params;
         const { first_name, last_name, phone, avatar_url, agency_id } = req.body;
 
+        // Vérification ownership : seul l'utilisateur lui-même ou un admin peut modifier le profil
+        if (req.user.id !== id && !['admin', 'super_admin'].includes(req.user.role)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès interdit : vous ne pouvez modifier que votre propre profil'
+            });
+        }
+
         const user = await User.findByPk(id);
 
         if (!user) {
@@ -242,6 +250,14 @@ const changePassword = async (req, res) => {
     try {
         const { id } = req.params;
         const { currentPassword, newPassword } = req.body;
+
+        // Vérification ownership : seul l'utilisateur lui-même ou un admin peut changer le mot de passe
+        if (req.user.id !== id && !['admin', 'super_admin'].includes(req.user.role)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès interdit : vous ne pouvez changer que votre propre mot de passe'
+            });
+        }
 
         const user = await User.findByPk(id);
 

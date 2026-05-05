@@ -4,7 +4,7 @@
  * CŒUR DU PROJET - Senior implementation
  */
 
-const { Equipment, Depositor, Agency, EquipmentType, User, Diagnostic, Intervention } = require('../models');
+const { Equipment, Depositor, Agency, EquipmentType, User, Diagnostic, Intervention, sequelize } = require('../models');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -12,21 +12,23 @@ const socketService = require('../services/socketService');
 
 /**
  * Générer une référence unique pour l'équipement
+ * Utilise une transaction avec verrouillage pour éviter les doublons sous charge
  */
-const generateEquipmentReference = async () => {
+const generateEquipmentReference = async (transaction) => {
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
+    const prefix = `REF-${year}${month}${day}-`;
 
-    const count = await Equipment.count({
-        where: {
-            reference: { [Op.like]: `REF-${year}${month}${day}-%` }
-        }
-    });
+    const [results] = await sequelize.query(
+        `SELECT COUNT(*) as count FROM equipments WHERE reference LIKE :prefix FOR UPDATE`,
+        { replacements: { prefix: `${prefix}%` }, transaction }
+    );
 
+    const count = results[0]?.count || 0;
     const number = String(count + 1).padStart(5, '0');
-    return `REF-${year}${month}${day}-${number}`;
+    return `${prefix}${number}`;
 };
 
 /**
@@ -119,27 +121,36 @@ const createEquipment = async (req, res) => {
             }
         }
 
-        // Générer la référence unique
-        const reference = await generateEquipmentReference();
+        // Générer la référence unique dans une transaction pour éviter les doublons
+        const t = await sequelize.transaction();
+        let equipment;
+        try {
+            const reference = await generateEquipmentReference(t);
 
-        // Créer l'équipement avec qr_token auto-généré
-        const equipment = await Equipment.create({
-            reference,
-            type_id: resolvedTypeId || null,
-            agency_id,
-            depositor_id: resolvedDepositorId || null,
-            received_by: req.user.id,
-            brand,
-            model,
-            serial_number,
-            problem_description: problem_description || 'Aucune description fournie',
-            priority: priority || 'normal',
-            accessories: typeof accessories === 'string' ? [accessories] : accessories,
-            status: 'received',
-            received_at: new Date(),
-            sla_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            qr_token: uuidv4()
-        });
+            // Créer l'équipement avec qr_token auto-généré
+            equipment = await Equipment.create({
+                reference,
+                type_id: resolvedTypeId || null,
+                agency_id,
+                depositor_id: resolvedDepositorId || null,
+                received_by: req.user.id,
+                brand,
+                model,
+                serial_number,
+                problem_description: problem_description || 'Aucune description fournie',
+                priority: priority || 'normal',
+                accessories: typeof accessories === 'string' ? [accessories] : accessories,
+                status: 'received',
+                received_at: new Date(),
+                sla_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                qr_token: uuidv4()
+            }, { transaction: t });
+
+            await t.commit();
+        } catch (txErr) {
+            await t.rollback();
+            throw txErr;
+        }
 
         // Notifier les techniciens (ils doivent prendre en charge l'équipement)
         const { notifyTechnicians, notifyManagers, notifyAdmins } = require('../services/notificationService');
@@ -720,6 +731,72 @@ const getEquipmentByToken = async (req, res) => {
 };
 
 /**
+ * Supprimer définitivement un équipement
+ * DELETE /api/v1/equipments/:id
+ */
+const deleteEquipment = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const equipment = await Equipment.findByPk(id, {
+            include: [
+                { model: Intervention, as: 'interventions' },
+                { model: Diagnostic, as: 'diagnostics' }
+            ]
+        });
+
+        if (!equipment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Équipement non trouvé'
+            });
+        }
+
+        const reference = equipment.reference;
+
+        // Supprimer les dépendances en cascade
+        if (equipment.diagnostics?.length) {
+            await Diagnostic.destroy({ where: { equipment_id: id } });
+        }
+        if (equipment.interventions?.length) {
+            const { InterventionLog, Message } = require('../models');
+            for (const intervention of equipment.interventions) {
+                await InterventionLog.destroy({ where: { intervention_id: intervention.id } });
+                await Message.destroy({ where: { intervention_id: intervention.id } });
+            }
+            await Intervention.destroy({ where: { equipment_id: id } });
+        }
+
+        // Supprimer les messages liés directement à l'équipement
+        const { Message } = require('../models');
+        await Message.destroy({ where: { equipment_id: id } });
+
+        // Supprimer l'équipement
+        await equipment.destroy();
+
+        // Socket temps-réel
+        if (socketService?.getIo()) {
+            socketService.broadcast('equipment:deleted', { equipmentId: id, reference });
+        }
+
+        logger.info(`Équipement ${reference} supprimé définitivement par ${req.user.email}`);
+
+        res.status(200).json({
+            success: true,
+            message: `Équipement ${reference} supprimé définitivement`
+        });
+
+    } catch (error) {
+        logger.error('Erreur suppression équipement:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la suppression de l\'équipement',
+            error: error.message
+        });
+    }
+};
+
+/**
      * Agent confirme la récupération d'un équipement
      * PATCH /api/v1/equipments/:id/confirm-pickup
      */
@@ -794,5 +871,6 @@ module.exports = {
     updateEquipment,
     getEquipmentsByStatus,
     getEquipmentsStats,
-    confirmPickup
+    confirmPickup,
+    deleteEquipment
 };

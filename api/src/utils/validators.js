@@ -24,7 +24,7 @@ const registerSchema = Joi.object({
         'any.required': 'Nom requis'
     }),
     phone: Joi.string().allow('', null),
-    role: Joi.string().valid('admin', 'manager', 'technician', 'receptionist').default('receptionist'),
+    role: Joi.string().valid('receptionist').default('receptionist'),
     agency_id: Joi.string().uuid().allow('', null).optional()
 });
 
@@ -161,6 +161,67 @@ const interventionSchema = Joi.object({
     status: Joi.string().valid('pending', 'in_progress', 'paused', 'completed', 'cancelled').default('pending')
 });
 
+// ============================================
+// IA — PRÉ-DIAGNOSTIC
+// ============================================
+
+const aiPreDiagnosticSchema = Joi.object({
+    description: Joi.string()
+        .min(10)
+        .max(2000)
+        .required()
+        .messages({
+            'string.min': 'La description doit contenir au moins 10 caractères',
+            'string.max': 'La description ne peut pas dépasser 2000 caractères',
+            'any.required': 'La description du problème est requise'
+        }),
+    equipment_type: Joi.string().max(100).allow('', null),
+    brand: Joi.string().max(50).allow('', null),
+    model: Joi.string().max(100).allow('', null),
+    equipment_id: Joi.string().uuid().allow('', null)
+});
+
+const aiAnalyzeSchema = Joi.object({
+    description: Joi.string()
+        .min(5)
+        .max(2000)
+        .required()
+        .messages({
+            'string.min': 'La description doit contenir au moins 5 caractères',
+            'any.required': 'La description du problème est requise'
+        }),
+    equipmentId: Joi.string().uuid().allow('', null)
+});
+
+const aiAnswerSchema = Joi.object({
+    problemType: Joi.string()
+        .valid('power', 'screen', 'performance', 'network', 'printer', 'software', 'generic')
+        .required()
+        .messages({
+            'any.only': 'Type de problème invalide',
+            'any.required': 'Le type de problème est requis'
+        }),
+    stepIndex: Joi.number()
+        .integer()
+        .min(0)
+        .max(10)
+        .required()
+        .messages({
+            'any.required': 'L\'index de l\'étape est requis'
+        }),
+    answer: Joi.string()
+        .valid('Oui', 'Non', 'Je ne sais pas')
+        .required()
+        .messages({
+            'any.only': 'Réponse invalide (Oui, Non, Je ne sais pas)',
+            'any.required': 'La réponse est requise'
+        }),
+    previousAnswers: Joi.array().items(Joi.object({
+        step: Joi.number().integer().required(),
+        answer: Joi.string().required()
+    })).default([])
+});
+
 module.exports = {
     registerSchema,
     loginSchema,
@@ -171,5 +232,8 @@ module.exports = {
     equipmentSchema,
     equipmentStatusSchema,
     diagnosticSchema,
-    interventionSchema
+    interventionSchema,
+    aiPreDiagnosticSchema,
+    aiAnalyzeSchema,
+    aiAnswerSchema
 };

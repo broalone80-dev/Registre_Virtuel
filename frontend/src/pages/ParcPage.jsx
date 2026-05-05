@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
-import { HiOutlinePlusCircle, HiOutlineX } from 'react-icons/hi'
+import { HiOutlinePlusCircle, HiOutlineX, HiOutlineTrash } from 'react-icons/hi'
 import { HiOutlineBuildingOffice2, HiOutlineCheckCircle, HiOutlineWrenchScrewdriver, HiOutlineArchiveBox, HiOutlineExclamationTriangle, HiOutlineBellAlert, HiOutlineNoSymbol, HiOutlinePauseCircle } from 'react-icons/hi2'
 import { useSocket } from '../hooks/useSocket'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import toast from 'react-hot-toast'
 import './ParcPage.css'
 
 const EQUIPMENT_STATUS = {
@@ -66,6 +68,7 @@ export default function ParcPage() {
     const [selectedType, setSelectedType] = useState('')
     const [techView, setTechView] = useState('workshop') // 'workshop' or 'inventory'
     const [showAddModal, setShowAddModal] = useState(false)
+    const [deleteTarget, setDeleteTarget] = useState(null)
     const [formData, setFormData] = useState({
         type: 'Ordinateur portable', brand: 'Dell', model: '', serial: '',
         assigned_to: '', notes: '', status: 'active'
@@ -114,10 +117,16 @@ export default function ParcPage() {
 
             socket.on('equipment:created', handleEquipmentChange)
             socket.on('equipment:updated', handleEquipmentChange)
+            socket.on('equipment:deleted', (data) => {
+                if (data?.equipmentId) {
+                    setEquipments(prev => prev.filter(e => e.id !== data.equipmentId))
+                }
+            })
 
             return () => {
                 socket.off('equipment:created', handleEquipmentChange)
                 socket.off('equipment:updated', handleEquipmentChange)
+                socket.off('equipment:deleted')
             }
         }
     }, [api, user?.id, socket])
@@ -211,24 +220,29 @@ export default function ParcPage() {
             }
             const res = await api.post('/equipments', payload)
             if (res?.data) {
+                const newId = res.data.id
+                // Immédiatement passer en "disponible" — c'est un équipement de parc, pas une réparation
+                try { await api.patch(`/equipments/${newId}/status`, { status: 'available' }) } catch { /* ignore */ }
                 setEquipments(prev => [{
-                    id: res.data.id,
+                    id: newId,
                     agency_id: agencyId,
                     type: formData.type,
                     brand: formData.brand,
                     model: formData.model,
                     serial: formData.serial,
-                    status: 'received',
+                    status: 'available',
                     assigned_to: formData.assigned_to || 'N/A',
                     purchase_date: new Date().toISOString().split('T')[0],
                     notes: formData.notes
                 }, ...prev])
                 setShowAddModal(false)
-                setFormData({ type: 'Ordinateur portable', brand: 'Dell', model: '', serial: '', assigned_to: '', notes: '', status: 'active' })
+                setFormData({ type: 'Ordinateur portable', brand: 'Dell', model: '', serial: '', assigned_to: '', notes: '', status: 'available' })
+                toast.success('Équipement ajouté au parc avec succès')
                 return
             }
         } catch (err) {
             console.error('Erreur ajout équipement au parc:', err)
+            toast.error('Erreur lors de l\'ajout de l\'équipement')
         }
         setShowAddModal(false)
     }
@@ -516,6 +530,9 @@ export default function ParcPage() {
                                             {(eq.status === 'in_intervention' || eq.status === 'to_replace') && (
                                                 <button onClick={() => changeStatus(eq.id, 'active')} className="action-btn" title="Remettre actif"><HiOutlineCheckCircle size={16} /></button>
                                             )}
+                                            {isAdmin() && (
+                                                <button onClick={() => setDeleteTarget(eq)} className="action-btn delete" title="Supprimer définitivement"><HiOutlineTrash size={16} /></button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -590,6 +607,24 @@ export default function ParcPage() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {deleteTarget && (
+                <DeleteConfirmModal
+                    equipment={deleteTarget}
+                    onConfirm={async (id) => {
+                        try {
+                            await api.delete(`/equipments/${id}`)
+                            setEquipments(prev => prev.filter(e => e.id !== id))
+                            setDeleteTarget(null)
+                            toast.success("Équipement supprimé avec succès")
+                        } catch (err) {
+                            console.error(err)
+                            toast.error(err.response?.data?.message || "Erreur lors de la suppression")
+                        }
+                    }}
+                    onCancel={() => setDeleteTarget(null)}
+                />
             )}
         </div>
     )
